@@ -25,6 +25,15 @@ end top_basys3;
 architecture top_basys3_arch of top_basys3 is
 
     -- signal declarations
+    signal w_clk_slow : std_logic;
+    signal w_reset_clk : std_logic;
+    signal w_reset_fsm : std_logic;
+    signal w_floor1 : std_logic_vector(3 downto 0);
+    signal w_floor2 : std_logic_vector(3 downto 0);
+    signal w_seg_out : std_logic_vector(6 downto 0);
+    signal w_tdm_sel : std_logic_vector(3 downto 0);
+    signal w_seg_val : std_logic_vector(3 downto 0); 
+    signal w_tdm_clk : std_logic;
     
   
 	-- component declarations
@@ -70,14 +79,73 @@ architecture top_basys3_arch of top_basys3 is
 	
 begin
 	-- PORT MAPS ----------------------------------------
-    	
+    w_reset_clk <= btnU;
+    w_reset_fsm <= btnR;
 	
 	-- CONCURRENT STATEMENTS ----------------------------
 	
 	-- LED 15 gets the FSM slow clock signal. The rest are grounded.
+	led(15) <= w_clk_slow;
+	led(14 downto 0) <= (others => '0');
 	
-	-- leave unused switches UNCONNECTED. Ignore any warnings this causes.
+	seg <= w_seg_out;
+	an <= w_tdm_sel; -- let the TDM determine which anode is necessary to activate
 	
-	-- reset signals
+	u_clkdiv : clock_divider
+	generic map (k_DIV => 25000000)
+	port map (
+	   i_clk => clk,
+	   i_reset => w_reset_clk,
+	   o_clk => w_clk_slow
+	   
+	   );
+	u_TDMclkdiv : clock_divider
+	generic map (k_DIV => 100000)
+	port map (
+	   i_clk => clk,
+	   i_reset => w_reset_clk,
+	   o_clk => w_tdm_clk
+	   
+	   );
+	  
+	u_fsm1 : elevator_controller_fsm
+	   port map (
+	       is_stopped => sw(0),
+	       go_up_down => sw(1),
+	       o_floor => w_floor1,
+	       i_reset => w_reset_fsm,
+	       i_clk => w_clk_slow
+	       
+	       );
+	 u_fsm2 : elevator_controller_fsm
+	   port map (
+	       is_stopped => sw(14),
+	       go_up_down => sw(15),
+	       o_floor => w_floor2,
+	       i_reset => w_reset_fsm,
+	       i_clk => w_clk_slow
+	       
+	       );
+	
+	u_TDM : TDM4
+	   generic map (k_WIDTH => 4)
+	   port map (
+	       i_clk => w_tdm_clk,
+	       i_reset => w_reset_clk,
+	       i_D3 => x"F",
+	       i_D2 => w_floor2,
+	       i_D1 => x"F",
+	       i_D0 => w_floor1,
+	       o_data => w_seg_val,
+	       o_sel => w_tdm_sel
+	   
+	       );
+	   
+    u_decoder : sevenseg_decoder
+        port map (
+        i_Hex => w_seg_val,
+        o_seg_n => w_seg_out
+        
+        );
 	
 end top_basys3_arch;
